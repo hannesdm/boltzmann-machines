@@ -1,0 +1,68 @@
+{
+    "W_init": 0.001, 
+    "__class_name__": "BernoulliRBM", 
+    "batch_size": 48, 
+    "dbm_first": true, 
+    "dbm_last": false, 
+    "display_filters": 30, 
+    "display_hidden_activations": 24, 
+    "dropout": null, 
+    "dtype": "float32", 
+    "epoch_": 64, 
+    "hb_init": 0.0, 
+    "initialized_": true, 
+    "iter_": 80000, 
+    "json_params": {
+        "indent": 4, 
+        "sort_keys": true
+    }, 
+    "l2": 0.001, 
+    "learning_rate": [
+        0.05
+    ], 
+    "max_epoch": 64, 
+    "metrics_config": {
+        "feg": false, 
+        "feg_every_epoch": 2, 
+        "feg_fmt": ".2f", 
+        "l2_loss": false, 
+        "l2_loss_fmt": ".2e", 
+        "msre": true, 
+        "msre_fmt": ".4f", 
+        "n_batches_for_feg": 10, 
+        "pll": true, 
+        "pll_fmt": ".3f", 
+        "train_metrics_every_iter": 500, 
+        "val_metrics_every_epoch": 1
+    }, 
+    "momentum": [
+        0.5, 
+        0.5, 
+        0.5, 
+        0.5, 
+        0.5, 
+        0.9
+    ], 
+    "n_gibbs_steps": [
+        1
+    ], 
+    "n_hidden": 512, 
+    "n_visible": 784, 
+    "random_seed": 1337, 
+    "sample_h_states": true, 
+    "sample_v_states": true, 
+    "save_after_each_epoch": true, 
+    "sparsity_cost": 0.0, 
+    "sparsity_damping": 0.9, 
+    "sparsity_target": 0.1, 
+    "tf_saver_params": {
+        "max_to_keep": 1
+    }, 
+    "v_shape": [
+        28, 
+        28, 
+        1
+    ], 
+    "vb_init": 0.0, 
+    "verbose": true
+}

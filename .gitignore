@@ -1,5 +1,6 @@
 *.pyc
 *.json
+!params.json
 .idea/*
 .venv/*
 boltzmann_machines/test_rbm_1/*
