@@ -8,7 +8,7 @@ data/*.npy
 data/mnist/
 data/cifar-10-batches-py/
 notebooks/.ipynb_checkpoints/*
-models/*
+models/*/logs
 !models/fetch_models.sh
 tex/*.swp
 .idea
