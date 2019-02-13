@@ -130,10 +130,9 @@ def make_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_steps_
         rbm2.fit(Q)
     return rbm2
 
-def make_mlp(X_train, y_train, X_val, y_val, X_test, y_test,
-             dbm, mlp_save_prefix, n_hidden1=512, n_hidden2=1024, l2=1e-5,
-             lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100,
-             batch_size=128):
+def make_mlp(X_train, y_train, X_val, y_val, dbm,
+             n_hidden1=512, n_hidden2=1024, l2=1e-5,
+             lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100, batch_size=128):
     weights = dbm.get_tf_params(scope='weights')
     W = weights['W']
     print(W.shape)
@@ -186,18 +185,6 @@ def make_mlp(X_train, y_train, X_val, y_val, X_test, y_test,
                     callbacks=[early_stopping, reduce_lr])
         except KeyboardInterrupt:
             pass
-
-    y_pred = mlp.predict(X_test)
-    y_pred = unhot(one_hot_decision_function(y_pred), n_classes=10)
-    print("Test accuracy: {:.4f}".format(accuracy_score(y_test, y_pred)))
-
-    # save predictions, targets, and fine-tuned weights
-    np.save(mlp_save_prefix + 'y_pred.npy', y_pred)
-    np.save(mlp_save_prefix + 'y_test.npy', y_test)
-    W1_finetuned, _ = mlp.layers[0].get_weights()
-    W2_finetuned, _ = mlp.layers[2].get_weights()
-    np.save(mlp_save_prefix + 'W1_finetuned.npy', W1_finetuned)
-    np.save(mlp_save_prefix + 'W2_finetuned.npy', W2_finetuned)
 
 
 def make_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n_gibbs_steps=1,
