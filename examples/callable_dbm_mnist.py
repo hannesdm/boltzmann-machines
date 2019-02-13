@@ -130,6 +130,75 @@ def make_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_steps_
         rbm2.fit(Q)
     return rbm2
 
+def make_mlp(X_train, y_train, X_val, y_val, X_test, y_test,
+             dbm, mlp_save_prefix, n_hidden1=512, n_hidden2=1024, l2=1e-5,
+             lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100,
+             batch_size=128):
+    weights = dbm.get_tf_params(scope='weights')
+    W = weights['W']
+    print(W.shape)
+    hb = weights['hb']
+    W2 = weights['W_1']
+    print(W2.shape)
+    hb2 = weights['hb_1']
+
+    dense_params = {}
+    if W is not None and hb is not None:
+        dense_params['weights'] = (W, hb)
+
+    dense2_params = {}
+    if W2 is not None and hb2 is not None:
+        dense2_params['weights'] = (W2, hb2)
+
+    # define and initialize MLP model
+    mlp = Sequential([
+        Dense(n_hidden1, input_shape=(784,),
+              kernel_regularizer=regularizers.l2(l2),
+              kernel_initializer=glorot_uniform(seed=3333),
+              **dense_params),
+        Activation('sigmoid'),
+        Dense(n_hidden2,
+              kernel_regularizer=regularizers.l2(l2),
+              kernel_initializer=glorot_uniform(seed=4444),
+              **dense2_params),
+        Activation('sigmoid'),
+        Dense(10, kernel_initializer=glorot_uniform(seed=5555)),
+        Activation('softmax'),
+    ])
+    mlp.compile(optimizer=MultiAdam(lr=0.001,
+                                    lr_multipliers={'dense_1': lrm1,
+                                                    'dense_2': lrm2,
+                                                    'dense_3': lrm3,}),
+                loss='categorical_crossentropy',
+                metrics=['accuracy'])
+
+    # train and evaluate classifier
+    with Stopwatch(verbose=True) as s:
+        early_stopping = EarlyStopping(monitor=mlp_val_metric, patience=12, verbose=2)
+        reduce_lr = ReduceLROnPlateau(monitor=mlp_val_metric, factor=0.2, verbose=2,
+                                      patience=6, min_lr=1e-5)
+        try:
+            mlp.fit(X_train, one_hot(y_train, n_classes=10),
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    shuffle=False,
+                    validation_data=(X_val, one_hot(y_val, n_classes=10)),
+                    callbacks=[early_stopping, reduce_lr])
+        except KeyboardInterrupt:
+            pass
+
+    y_pred = mlp.predict(X_test)
+    y_pred = unhot(one_hot_decision_function(y_pred), n_classes=10)
+    print("Test accuracy: {:.4f}".format(accuracy_score(y_test, y_pred)))
+
+    # save predictions, targets, and fine-tuned weights
+    np.save(mlp_save_prefix + 'y_pred.npy', y_pred)
+    np.save(mlp_save_prefix + 'y_test.npy', y_test)
+    W1_finetuned, _ = mlp.layers[0].get_weights()
+    W2_finetuned, _ = mlp.layers[2].get_weights()
+    np.save(mlp_save_prefix + 'W1_finetuned.npy', W1_finetuned)
+    np.save(mlp_save_prefix + 'W2_finetuned.npy', W2_finetuned)
+
 
 def make_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n_gibbs_steps=1,
              max_mf_updates=50, mf_tol=1e-7, epochs=500, batch_size=100, lr=2e-3, l2=1e-7, max_norm=6.,
@@ -175,78 +244,6 @@ def make_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n
 
 
 def main():
-    # training settings
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    # general/data
-    parser.add_argument('--gpu', type=str, default='0', metavar='ID',
-                        help="ID of the GPU to train on (or '' to train on CPU)")
-    parser.add_argument('--n-train', type=int, default=59000, metavar='N',
-                        help='number of training examples')
-    parser.add_argument('--n-val', type=int, default=1000, metavar='N',
-                        help='number of validation examples')
-
-    # RBM #2 related
-    parser.add_argument('--increase-n-gibbs-steps-every', type=int, default=20, metavar='I',
-                        help='increase number of Gibbs steps every specified number of epochs for RBM #2')
-
-    # common for RBMs and DBM
-    parser.add_argument('--n-hiddens', type=int, default=(512, 1024), metavar='N', nargs='+',
-                        help='numbers of hidden units')
-    parser.add_argument('--n-gibbs-steps', type=int, default=(1, 1, 1), metavar='N', nargs='+',
-                        help='(initial) number of Gibbs steps for CD/PCD')
-    parser.add_argument('--lr', type=float, default=(0.05, 0.01, 2e-3), metavar='LR', nargs='+',
-                        help='(initial) learning rates')
-    parser.add_argument('--epochs', type=int, default=(64, 120, 500), metavar='N', nargs='+',
-                        help='number of epochs to train')
-    parser.add_argument('--batch-size', type=int, default=(48, 48, 100), metavar='B', nargs='+',
-                        help='input batch size for training, `--n-train` and `--n-val`' + \
-                             'must be divisible by this number (for DBM)')
-    parser.add_argument('--l2', type=float, default=(1e-3, 2e-4, 1e-7), metavar='L2', nargs='+',
-                        help='L2 weight decay coefficients')
-    parser.add_argument('--random-seed', type=int, default=(1337, 1111, 2222), metavar='N', nargs='+',
-                        help='random seeds for models training')
-
-    # save dirpaths
-    parser.add_argument('--rbm1-dirpath', type=str, default='../models/dbm_mnist_rbm1/', metavar='DIRPATH',
-                        help='directory path to save RBM #1')
-    parser.add_argument('--rbm2-dirpath', type=str, default='../models/dbm_mnist_rbm2/', metavar='DIRPATH',
-                        help='directory path to save RBM #2')
-    parser.add_argument('--dbm-dirpath', type=str, default='../models/dbm_mnist/', metavar='DIRPATH',
-                        help='directory path to save DBM')
-
-    # DBM related
-    parser.add_argument('--n-particles', type=int, default=100, metavar='M',
-                        help='number of persistent Markov chains')
-    parser.add_argument('--max-mf-updates', type=int, default=50, metavar='N',
-                        help='maximum number of mean-field updates per weight update')
-    parser.add_argument('--mf-tol', type=float, default=1e-7, metavar='TOL',
-                        help='mean-field tolerance')
-    parser.add_argument('--max-norm', type=float, default=6., metavar='C',
-                        help='maximum norm constraint')
-    parser.add_argument('--sparsity-target', type=float, default=(0.2, 0.1), metavar='T', nargs='+',
-                        help='desired probability of hidden activation')
-    parser.add_argument('--sparsity-cost', type=float, default=(1e-4, 5e-5), metavar='C', nargs='+',
-                        help='controls the amount of sparsity penalty')
-    parser.add_argument('--sparsity-damping', type=float, default=0.9, metavar='D',
-                        help='decay rate for hidden activations probs')
-
-    # parse and check params
-    args = parser.parse_args()
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-    for x, m in (
-            (args.n_gibbs_steps, 3),
-            (args.lr, 3),
-            (args.epochs, 3),
-            (args.batch_size, 3),
-            (args.l2, 3),
-            (args.random_seed, 3),
-            (args.sparsity_target, 2),
-            (args.sparsity_cost, 2),
-            (args.mlp_lrm, 3),
-    ):
-        if len(x) == 1:
-            x *= m
 
     # prepare data (load + scale + split)
     print("\nPreparing data ...\n\n")
