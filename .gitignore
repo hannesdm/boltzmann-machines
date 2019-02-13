@@ -13,3 +13,4 @@ models/*/logs
 !models/fetch_models.sh
 tex/*.swp
 .idea
+temp

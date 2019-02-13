@@ -35,7 +35,7 @@ def batch_iter(X, batch_size=10, verbose=False, desc='epoch'):
     X = np.asarray(X)
     N = len(X)
     n_batches = N / batch_size + (N % batch_size > 0)
-    gen = range(n_batches)
+    gen = range(int(n_batches))
     if verbose: gen = progress_bar(gen, leave=False, ncols=64, desc=desc)
     for i in gen:
         yield X[i*batch_size:(i + 1)*batch_size]
