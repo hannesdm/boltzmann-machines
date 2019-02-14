@@ -178,11 +178,11 @@ def create_mlp(X_train, y_train, X_val, y_val, dbm,
         reduce_lr = ReduceLROnPlateau(monitor=mlp_val_metric, factor=0.2, verbose=2,
                                       patience=6, min_lr=1e-5)
         try:
-            mlp.fit(X_train, one_hot(y_train, n_classes=10),
+            mlp.fit(X_train, y_train,
                     epochs=epochs,
                     batch_size=batch_size,
                     shuffle=False,
-                    validation_data=(X_val, one_hot(y_val, n_classes=10)),
+                    validation_data=(X_val,y_val),
                     callbacks=[early_stopping, reduce_lr])
         except KeyboardInterrupt:
             return mlp
