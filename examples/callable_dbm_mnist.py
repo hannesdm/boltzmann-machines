@@ -44,8 +44,8 @@ from boltzmann_machines.utils.dataset import load_mnist
 from boltzmann_machines.utils.optimizers import MultiAdam
 
 
-def make_rbm1(X, rbm1_dirpath, n_hidden=512, initial_n_gibbs_steps=1, lr=0.05, epochs=64,
-              batch_size=48, l2=1e-3, random_seed=1337):
+def create_rbm1(X, rbm1_dirpath, n_hidden=512, initial_n_gibbs_steps=1, lr=0.05, epochs=64,
+                batch_size=48, l2=1e-3, random_seed=1337):
     if os.path.isdir(rbm1_dirpath):
         print("\nLoading RBM #1 ...\n\n")
         rbm1 = BernoulliRBM.load_model(rbm1_dirpath)
@@ -83,9 +83,9 @@ def make_rbm1(X, rbm1_dirpath, n_hidden=512, initial_n_gibbs_steps=1, lr=0.05, e
     return rbm1
 
 
-def make_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_steps_every=20,
-              initial_n_gibbs_steps=1, epochs=120, batch_size=48, l2=2e-4, lr=0.01,
-              random_seed=1111):
+def create_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_steps_every=20,
+                initial_n_gibbs_steps=1, epochs=120, batch_size=48, l2=2e-4, lr=0.01,
+                random_seed=1111):
     if os.path.isdir(rbm2_dirpath):
         print("\nLoading RBM #2 ...\n\n")
         rbm2 = BernoulliRBM.load_model(rbm2_dirpath)
@@ -130,7 +130,8 @@ def make_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_steps_
         rbm2.fit(Q)
     return rbm2
 
-def make_mlp(X_train, y_train, X_val, y_val, dbm,
+
+def create_mlp(X_train, y_train, X_val, y_val, dbm,
              n_hidden1=512, n_hidden2=1024, l2=1e-5,
              lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100, batch_size=128):
     weights = dbm.get_tf_params(scope='weights')
@@ -167,7 +168,7 @@ def make_mlp(X_train, y_train, X_val, y_val, dbm,
     mlp.compile(optimizer=MultiAdam(lr=0.001,
                                     lr_multipliers={'dense_1': lrm1,
                                                     'dense_2': lrm2,
-                                                    'dense_3': lrm3,}),
+                                                    'dense_3': lrm3, }),
                 loss='categorical_crossentropy',
                 metrics=['accuracy'])
 
@@ -184,10 +185,11 @@ def make_mlp(X_train, y_train, X_val, y_val, dbm,
                     validation_data=(X_val, one_hot(y_val, n_classes=10)),
                     callbacks=[early_stopping, reduce_lr])
         except KeyboardInterrupt:
-            pass
+            return mlp
+    return mlp
 
 
-def make_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n_gibbs_steps=1,
+def create_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n_gibbs_steps=1,
              max_mf_updates=50, mf_tol=1e-7, epochs=500, batch_size=100, lr=2e-3, l2=1e-7, max_norm=6.,
              sparsity_target=(0.2, 0.1), sparsity_cost=(1e-4, 5e-5), sparsity_damping=0.9,
              random_seed=2222):
@@ -231,56 +233,7 @@ def make_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n
 
 
 def main():
-
-    # prepare data (load + scale + split)
-    print("\nPreparing data ...\n\n")
-    X, y = load_mnist(mode='train', path='../data/')
-    X /= 255.
-
-
-    # pre-train RBM #1
-    rbm1 = make_rbm1(X, args)
-
-    # freeze RBM #1 and extract features Q = p_{RBM_1}(h|v=X)
-    Q = None
-    if not os.path.isdir(args.rbm2_dirpath) or not os.path.isdir(args.dbm_dirpath):
-        print("\nExtracting features from RBM #1 ...")
-        Q = rbm1.transform(X)
-        print("\n")
-
-    # pre-train RBM #2
-    rbm2 = make_rbm2(Q, args)
-
-    # freeze RBM #2 and extract features G = p_{RBM_2}(h|v=Q)
-    G = None
-    if not os.path.isdir(args.dbm_dirpath):
-        print("\nExtracting features from RBM #2 ...")
-        G = rbm2.transform(Q)
-        print("\n")
-
-    # jointly train DBM
-    dbm = make_dbm((X_train, X_val), (rbm1, rbm2), (Q, G), args)
-
-    # load test data
-    X_test, y_test = load_mnist(mode='test', path='../data/')
-    X_test /= 255.
-
-    # discriminative fine-tuning: initialize MLP with
-    # learned weights, add FC layer and train using backprop
-    print("\nDiscriminative fine-tuning ...\n\n")
-
-    W, hb = None, None
-    W2, hb2 = None, None
-    if not args.mlp_no_init:
-        weights = dbm.get_tf_params(scope='weights')
-        W = weights['W']
-        hb = weights['hb']
-        W2 = weights['W_1']
-        hb2 = weights['hb_1']
-
-    make_mlp((X_train, y_train), (X_val, y_val), (X_test, y_test),
-             (W, hb), (W2, hb2), args)
-
+    pass
 
 if __name__ == '__main__':
     main()
