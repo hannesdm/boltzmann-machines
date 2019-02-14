@@ -26,21 +26,15 @@ Links
 # print(__doc__)
 
 import os
-import argparse
 import numpy as np
 from keras import regularizers
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from keras.initializers import glorot_uniform
 from keras.models import Sequential
 from keras.layers import Dense, Activation
-from sklearn.metrics import accuracy_score
 
-from . import env
 from boltzmann_machines import DBM
 from boltzmann_machines.rbm import BernoulliRBM
-from boltzmann_machines.utils import (RNG, Stopwatch,
-                                      one_hot, one_hot_decision_function, unhot)
-from boltzmann_machines.utils.dataset import load_mnist
 from boltzmann_machines.utils.optimizers import MultiAdam
 
 
@@ -131,9 +125,7 @@ def create_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_step
     return rbm2
 
 
-def create_mlp(X_train, y_train, X_val, y_val, dbm,
-             n_hidden1=512, n_hidden2=1024, l2=1e-5,
-             lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100, batch_size=128):
+def extract_weights(dbm):
     weights = dbm.get_tf_params(scope='weights')
     W = weights['W']
     print(W.shape)
@@ -141,7 +133,15 @@ def create_mlp(X_train, y_train, X_val, y_val, dbm,
     W2 = weights['W_1']
     print(W2.shape)
     hb2 = weights['hb_1']
+    return W, hb, W2, hb2
 
+
+def create_mlp(X_train, y_train, X_val, y_val, dbm,
+               n_hidden1=512, n_hidden2=1024, l2=1e-5,
+               lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100, batch_size=128):
+    W, hb, W2, hb2 = extract_weights(dbm)
+    import keras.backend as K  # multiple calls can give errors because of tensorflow - keras interactions
+    K.clear_session()
     dense_params = {}
     if W is not None and hb is not None:
         dense_params['weights'] = (W, hb)
@@ -176,20 +176,24 @@ def create_mlp(X_train, y_train, X_val, y_val, dbm,
     early_stopping = EarlyStopping(monitor=mlp_val_metric, patience=12, verbose=2)
     reduce_lr = ReduceLROnPlateau(monitor=mlp_val_metric, factor=0.2, verbose=2,
                                   patience=6, min_lr=1e-5)
-    mlp.fit(X_train, y_train,
-            epochs=epochs,
-            batch_size=batch_size,
-            shuffle=False,
-            validation_data=(X_val,y_val),
-            callbacks=[early_stopping, reduce_lr],
-            verbose=1)
+    try:
+        mlp.fit(X_train, y_train,
+                epochs=epochs,
+                batch_size=batch_size,
+                shuffle=False,
+                validation_data=(X_val, y_val),
+                callbacks=[early_stopping, reduce_lr],
+                verbose=1)
+    except KeyboardInterrupt:
+        pass  # return as usual
+    # keras.backend.clear_session()
     return mlp
 
 
 def create_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial_n_gibbs_steps=1,
-             max_mf_updates=50, mf_tol=1e-7, epochs=500, batch_size=100, lr=2e-3, l2=1e-7, max_norm=6.,
-             sparsity_target=(0.2, 0.1), sparsity_cost=(1e-4, 5e-5), sparsity_damping=0.9,
-             random_seed=2222):
+               max_mf_updates=50, mf_tol=1e-7, epochs=500, batch_size=100, lr=2e-3, l2=1e-7, max_norm=6.,
+               sparsity_target=(0.2, 0.1), sparsity_cost=(1e-4, 5e-5), sparsity_damping=0.9,
+               random_seed=2222):
     if os.path.isdir(dbm_dirpath):
         print("\nLoading DBM ...\n\n")
         dbm = DBM.load_model(dbm_dirpath)
@@ -231,6 +235,7 @@ def create_dbm(X_train, X_val, rbms, Q, G, dbm_dirpath, n_particles=100, initial
 
 def main():
     pass
+
 
 if __name__ == '__main__':
     main()
