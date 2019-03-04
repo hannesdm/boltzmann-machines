@@ -138,7 +138,8 @@ def extract_weights(dbm):
 
 def create_mlp(X_train, y_train, X_val, y_val, dbm,
                n_hidden1=512, n_hidden2=1024, l2=1e-5,
-               lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc', epochs=100, batch_size=128):
+               lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc',
+               epochs=100, batch_size=128, seeds=(None, None, None)):
     W, hb, W2, hb2 = extract_weights(dbm)
     import keras.backend as K  # multiple calls can give errors because of tensorflow - keras interactions
     K.clear_session()
@@ -150,19 +151,19 @@ def create_mlp(X_train, y_train, X_val, y_val, dbm,
     if W2 is not None and hb2 is not None:
         dense2_params['weights'] = (W2, hb2)
 
-    # define and initialize MLP model
+    # define and initialize MLP model, default seeds = (3333, 4444, 5555)
     mlp = Sequential([
         Dense(n_hidden1, input_shape=(784,),
               kernel_regularizer=regularizers.l2(l2),
-              kernel_initializer=glorot_uniform(seed=3333),
+              kernel_initializer=glorot_uniform(seed=seeds[0]),
               **dense_params),
         Activation('sigmoid'),
         Dense(n_hidden2,
               kernel_regularizer=regularizers.l2(l2),
-              kernel_initializer=glorot_uniform(seed=4444),
+              kernel_initializer=glorot_uniform(seed=seeds[1]),
               **dense2_params),
         Activation('sigmoid'),
-        Dense(10, kernel_initializer=glorot_uniform(seed=5555)),
+        Dense(10, kernel_initializer=glorot_uniform(seed=seeds[2])),
         Activation('softmax'),
     ])
     mlp.compile(optimizer=MultiAdam(lr=0.001,
