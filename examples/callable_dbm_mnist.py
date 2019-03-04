@@ -128,10 +128,8 @@ def create_rbm2(Q, rbm2_dirpath, n_visible, n_hidden=1024, increase_n_gibbs_step
 def extract_weights(dbm):
     weights = dbm.get_tf_params(scope='weights')
     W = weights['W']
-    print(W.shape)
     hb = weights['hb']
     W2 = weights['W_1']
-    print(W2.shape)
     hb2 = weights['hb_1']
     return W, hb, W2, hb2
 
@@ -139,8 +137,12 @@ def extract_weights(dbm):
 def create_mlp(X_train, y_train, X_val, y_val, dbm,
                n_hidden1=512, n_hidden2=1024, l2=1e-5,
                lrm1=0.01, lrm2=0.1, lrm3=1, mlp_val_metric='val_acc',
+               early_stopping_patience=12,
+               reduce_lr_patience=6,
                epochs=100, batch_size=128, seeds=(None, None, None)):
     W, hb, W2, hb2 = extract_weights(dbm)
+    print("Layer 1 weights shape:", W.shape)
+    print("Layer 2 weights shape:", W2.shape)
     import keras.backend as K  # multiple calls can give errors because of tensorflow - keras interactions
     K.clear_session()
     dense_params = {}
@@ -174,9 +176,9 @@ def create_mlp(X_train, y_train, X_val, y_val, dbm,
                 metrics=['accuracy'])
 
     # train and evaluate classifier
-    early_stopping = EarlyStopping(monitor=mlp_val_metric, patience=12, verbose=2)
+    early_stopping = EarlyStopping(monitor=mlp_val_metric, patience=early_stopping_patience, verbose=2)
     reduce_lr = ReduceLROnPlateau(monitor=mlp_val_metric, factor=0.2, verbose=2,
-                                  patience=6, min_lr=1e-5)
+                                  patience=reduce_lr_patience, min_lr=1e-5)
     try:
         mlp.fit(X_train, y_train,
                 epochs=epochs,
