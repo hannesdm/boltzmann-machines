@@ -34,6 +34,8 @@ def im_plot(X, n_width=10, n_height=10, shape=None, title=None,
             if shape is not None:
                 img = img.reshape(shape)
             ax = plt.subplot(n_height, n_width, i + 1)
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
             for d in ('bottom', 'top', 'left', 'right'):
                 ax.spines[d].set_linewidth(2.)
             plt.tick_params(**tick_params())
